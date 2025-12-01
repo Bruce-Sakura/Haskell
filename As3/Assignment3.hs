@@ -75,15 +75,14 @@ fromRose (Br xs) = Free (map fromRose xs)
 --    |     ^^^^^
 -- Failed, one module loaded.
 
-trace :: FreeState s a -> State ([s],s) a
+trace :: FreeState s a -> State ([s], s) a
 trace (Pure x) = return x
 
 trace (Free a) = do
-    (logs, st) <- get
-    let  (next, st') = runState a st
-    put (st' : logs, st')
-    trace next
-
+    (logs, st) <- get                    -- Get the current log and state
+    let (next, st') = runState a st       -- Run the computation a with the state st
+    put (st' : logs, st')                -- Update the logs and state
+    trace next                           -- Recursively call trace with the next computation
 
 {- Question 3 -}
 

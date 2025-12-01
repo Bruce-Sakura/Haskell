@@ -68,9 +68,6 @@ fibF n = do fibF (n-1)
             putF (y,x+y)
             return ()
 
-trace :: FreeState s a -> State ([s],s) a
-trace = undefined
-
 {- Question 3 -}
 
 data FSum f g a = FLeft (f a) | FRight (g a)
