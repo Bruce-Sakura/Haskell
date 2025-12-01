@@ -87,9 +87,84 @@ trace (Free a) = do
 {- Question 3 -}
 
 roundRobin :: [YieldState s ()] -> State s ()
-roundRobin = undefined
+roundRobin [] = return () -- No processes left to run -> return ()
 
+roundRobin (p: ps) = case p of 
+    Pure () -> roundRobin ps -- When a computation finishes with a Pure, that process is removed from the list
+
+    Free (FLeft st) -> do
+        next <- st --st is a State s (YieldState s ())
+        roundRobin (ps ++ [next]) -- Add the yielded process to the end of the list
+
+    Free (FRight (Yield next)) -> roundRobin (ps ++ [next]) -- release the yield and continue
+    
 {- Question 4 -}
 
 schedule :: [SleepState s ()] -> State s ()
-schedule = undefined
+schedule xs = loop (map (\t -> (0, t)) xs)
+  where
+
+    -- main loop: no threads left
+    loop [] = return ()
+
+    -- main loop: some threads remain
+    loop ts =
+      case findRunnable ts of
+        Nothing ->
+          -- all sleeping → decrement all counters
+          loop (map dec ts)
+        Just idx ->
+          runOne idx ts >>= loop
+
+
+    ------------------------------------------------------------
+    -- Find the first runnable thread (sleepCounter == 0)
+    ------------------------------------------------------------
+    findRunnable :: [(Int, SleepState s ())] -> Maybe Int
+    findRunnable [] = Nothing
+    findRunnable ((c,_):rest)
+      | c == 0    = Just 0
+      | otherwise = fmap (+1) (findRunnable rest)
+
+
+    ------------------------------------------------------------
+    -- Decrement a thread sleep counter by 1
+    ------------------------------------------------------------
+    -- dec :: (Int, SleepState s ()) -> (Int, SleepState s ())
+    -- dec (c,t) = (c - 1, t)
+
+    dec :: (Int, SleepState s ()) -> (Int, SleepState s ())
+    dec (c,t)
+        | c > 0     = (c - 1, t)
+        | otherwise = (0, t)
+
+
+
+    ------------------------------------------------------------
+    -- Execute one step of thread idx
+    ------------------------------------------------------------
+    runOne
+      :: Int
+      -> [(Int, SleepState s ())]
+      -> State s [(Int, SleepState s ())]
+    runOne i ts =
+      let (before,(c,t):after) = splitAt i ts
+      in case t of
+
+          -- thread finished → remove it
+          Pure () ->
+            return (before ++ after)
+
+          -- state step → costs 1 tick
+          Free (FLeft st) -> do
+            next <- st
+            let updated =
+                  zipWith update [0..] ts
+                update j (c', t')
+                  | j == i    = (0, next)      -- active thread resets to ready
+                  | otherwise = (c' - 1, t')   -- others sleepCounter -= 1
+            return updated
+
+          -- sleep n → does NOT consume tick
+          Free (FRight (Sleep n next)) ->
+            return (before ++ [(n, next)] ++ after)
