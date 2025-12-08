@@ -85,18 +85,50 @@ trace (Free a) = do
     trace next                           -- Recursively call trace with the next computation
 
 {- Question 3 -}
+-- This not work
+-- roundRobin :: [YieldState s ()] -> State s ()
+-- roundRobin [] = return () -- No processes left to run -> return ()
 
+-- roundRobin (p: ps) = case p of 
+--     Pure () -> roundRobin ps -- When a computation finishes with a Pure, that process is removed from the list
+
+--     Free (FLeft st) -> do
+--         next <- st --st is a State s (YieldState s ())
+--         roundRobin (ps ++ [next]) -- Add the yielded process to the end of the list
+
+--     Free (FRight (Yield next)) -> roundRobin (ps ++ [next]) -- release the yield and continue
 roundRobin :: [YieldState s ()] -> State s ()
-roundRobin [] = return () -- No processes left to run -> return ()
+roundRobin [] = return ()
 
-roundRobin (p: ps) = case p of 
-    Pure () -> roundRobin ps -- When a computation finishes with a Pure, that process is removed from the list
+roundRobin (p : ps) =
+  case p of
 
+    -- Thread ends → remove from list
+    Pure () ->
+      roundRobin ps
+
+    -- State instruction (does NOT yield)
     Free (FLeft st) -> do
-        next <- st --st is a State s (YieldState s ())
-        roundRobin (ps ++ [next]) -- Add the yielded process to the end of the list
+      next <- st
+      -- continue running *the same thread*
+      roundRobin (next : ps)
 
-    Free (FRight (Yield next)) -> roundRobin (ps ++ [next]) -- release the yield and continue
+    -- Yield instruction → move to back
+    Free (FRight (Yield next)) ->
+      roundRobin (ps ++ [next])
+
+charWriter :: Char -> YieldState String ()
+charWriter c = do 
+  s <- getY
+  if length s > 10 
+    then pure ()
+    else do
+      putY (c:s)
+      yield
+      charWriter c
+
+yieldExample :: [YieldState String ()]
+yieldExample = [charWriter 'a', charWriter 'b', charWriter 'c']
 
 
 {- Question 4 -}
