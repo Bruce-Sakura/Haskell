@@ -100,19 +100,14 @@ roundRobin (p: ps) = case p of
     
 
 {- Question 4 -}
-
 schedule :: [SleepState s ()] -> State s ()
 schedule ts0 = loop (initThreads ts0)
   where
-    ----------------------------------------------------------------
     -- Represent each thread as (sleepCounter, threadState)
-    ----------------------------------------------------------------
     initThreads :: [SleepState s ()] -> [(Int, SleepState s ())]
     initThreads = map (\t -> (0,t))
-
-    ----------------------------------------------------------------
+    
     -- Main scheduling loop
-    ----------------------------------------------------------------
     loop :: [(Int, SleepState s ())] -> State s ()
     loop [] = return ()     -- no threads → finish
 
@@ -125,10 +120,7 @@ schedule ts0 = loop (initThreads ts0)
           -- run thread i until it sleeps or exits
           runThread i ts >>= loop
 
-
-    ----------------------------------------------------------------
     -- Find first runnable thread (sleepCounter == 0)
-    ----------------------------------------------------------------
     firstRunnable :: [(Int, SleepState s ())] -> Maybe Int
     firstRunnable = go 0
       where
@@ -137,21 +129,16 @@ schedule ts0 = loop (initThreads ts0)
           | c == 0    = Just i
           | otherwise = go (i+1) xs
 
-
-    ----------------------------------------------------------------
     -- Decrement a sleep counter by 1 but not below zero
-    ----------------------------------------------------------------
     dec :: (Int, SleepState s ()) -> (Int, SleepState s ())
     dec (c,t) = (max 0 (c-1), t)
 
-
-    ----------------------------------------------------------------
     -- Run thread i until:
     --   • it executes a Sleep
     --   • or finishes (Pure)
     --
     -- Every State-step is 1 tick → other threads' counters -1
-    ----------------------------------------------------------------
+
     runThread
       :: Int
       -> [(Int, SleepState s ())]
@@ -160,17 +147,13 @@ schedule ts0 = loop (initThreads ts0)
       let (before,(c,t):after) = splitAt i ts
       in case t of
 
-        ----------------------------------------------------------------
         -- Thread ends
-        ----------------------------------------------------------------
         Pure () -> return (before ++ after)
 
-        ----------------------------------------------------------------
         -- State-step: consumes 1 tick
         --   • execute the effect
         --   • this thread becomes "next"
         --   • other threads sleepCounter-- 
-        ----------------------------------------------------------------
         Free (FLeft st) -> do
           next <- st
           let ts' = zipWith update [0..] ts
@@ -180,9 +163,8 @@ schedule ts0 = loop (initThreads ts0)
           -- Keep running same thread i
           runThread i ts'
 
-        ----------------------------------------------------------------
         -- Sleep n: DOES NOT consume tick
         -- scheduler resumes to outer loop
-        ----------------------------------------------------------------
+
         Free (FRight (Sleep n next)) ->
           return (before ++ [(n, next)] ++ after)
