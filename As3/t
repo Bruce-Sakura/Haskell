@@ -1,13 +1,13 @@
-3
-ghci> execState (roundRobin yieldExample) ""
-"bacbacbacba"
-"bacbacbacba"
 
 2
 ghci> execState (trace $ fibF 5) ([],(0,1))
 ([(5,8),(3,5),(3,5),(2,3),(2,3),(1,2),(1,2),(1,1),(1,1),(0,1)],(5,8))
 ([(5,8),(3,5),(3,5),(2,3),(2,3),(1,2),(1,2),(1,1),(1,1),(0,1)],(5,8))
 
+3
+ghci> execState (roundRobin yieldExample) ""
+"bacbacbacba"
+"bacbacbacba"
 4
 ghci> execState (schedule sleepExample) ""
 "aacbbac"
