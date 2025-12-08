@@ -97,7 +97,7 @@ roundRobin (p: ps) = case p of
         roundRobin (ps ++ [next]) -- Add the yielded process to the end of the list
 
     Free (FRight (Yield next)) -> roundRobin (ps ++ [next]) -- release the yield and continue
-    
+
 
 {- Question 4 -}
 schedule :: [SleepState s ()] -> State s ()
