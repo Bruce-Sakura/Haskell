@@ -61,6 +61,15 @@ fromRose :: Rose a -> Free [] a
 fromRose (Lf x)= Pure x
 fromRose (Br xs) = Free (map fromRose xs)
 
+-- just for testing
+-- eqRose :: Eq a => Rose a -> Rose a -> Bool
+-- eqRose (Lf a) (Lf b) = a == b
+-- eqRose (Br xs) (Br ys) =
+--     length xs == length ys &&
+--     and (zipWith eqRose xs ys)
+-- eqRose _ _ = False
+
+
 {- Question 2 -}
 -- I don't know why showing this error so i change the name
 -- Assignment3.hs:73:5: error:
