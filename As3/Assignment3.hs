@@ -98,73 +98,91 @@ roundRobin (p: ps) = case p of
 
     Free (FRight (Yield next)) -> roundRobin (ps ++ [next]) -- release the yield and continue
     
+
 {- Question 4 -}
 
 schedule :: [SleepState s ()] -> State s ()
-schedule xs = loop (map (\t -> (0, t)) xs)
+schedule ts0 = loop (initThreads ts0)
   where
+    ----------------------------------------------------------------
+    -- Represent each thread as (sleepCounter, threadState)
+    ----------------------------------------------------------------
+    initThreads :: [SleepState s ()] -> [(Int, SleepState s ())]
+    initThreads = map (\t -> (0,t))
 
-    -- main loop: no threads left
-    loop [] = return ()
+    ----------------------------------------------------------------
+    -- Main scheduling loop
+    ----------------------------------------------------------------
+    loop :: [(Int, SleepState s ())] -> State s ()
+    loop [] = return ()     -- no threads → finish
 
-    -- main loop: some threads remain
     loop ts =
-      case findRunnable ts of
+      case firstRunnable ts of
         Nothing ->
-          -- all sleeping → decrement all counters
+          -- all sleeping → advance time
           loop (map dec ts)
-        Just idx ->
-          runOne idx ts >>= loop
+        Just i ->
+          -- run thread i until it sleeps or exits
+          runThread i ts >>= loop
 
 
-    ------------------------------------------------------------
-    -- Find the first runnable thread (sleepCounter == 0)
-    ------------------------------------------------------------
-    findRunnable :: [(Int, SleepState s ())] -> Maybe Int
-    findRunnable [] = Nothing
-    findRunnable ((c,_):rest)
-      | c == 0    = Just 0
-      | otherwise = fmap (+1) (findRunnable rest)
+    ----------------------------------------------------------------
+    -- Find first runnable thread (sleepCounter == 0)
+    ----------------------------------------------------------------
+    firstRunnable :: [(Int, SleepState s ())] -> Maybe Int
+    firstRunnable = go 0
+      where
+        go _ [] = Nothing
+        go i ((c,_):xs)
+          | c == 0    = Just i
+          | otherwise = go (i+1) xs
 
 
-    ------------------------------------------------------------
-    -- Decrement a thread sleep counter by 1
-    ------------------------------------------------------------
-    -- dec :: (Int, SleepState s ()) -> (Int, SleepState s ())
-    -- dec (c,t) = (c - 1, t)
-
+    ----------------------------------------------------------------
+    -- Decrement a sleep counter by 1 but not below zero
+    ----------------------------------------------------------------
     dec :: (Int, SleepState s ()) -> (Int, SleepState s ())
-    dec (c,t)
-        | c > 0     = (c - 1, t)
-        | otherwise = (0, t)
+    dec (c,t) = (max 0 (c-1), t)
 
 
-
-    ------------------------------------------------------------
-    -- Execute one step of thread idx
-    ------------------------------------------------------------
-    runOne
+    ----------------------------------------------------------------
+    -- Run thread i until:
+    --   • it executes a Sleep
+    --   • or finishes (Pure)
+    --
+    -- Every State-step is 1 tick → other threads' counters -1
+    ----------------------------------------------------------------
+    runThread
       :: Int
       -> [(Int, SleepState s ())]
       -> State s [(Int, SleepState s ())]
-    runOne i ts =
+    runThread i ts =
       let (before,(c,t):after) = splitAt i ts
       in case t of
 
-          -- thread finished → remove it
-          Pure () ->
-            return (before ++ after)
+        ----------------------------------------------------------------
+        -- Thread ends
+        ----------------------------------------------------------------
+        Pure () -> return (before ++ after)
 
-          -- state step → costs 1 tick
-          Free (FLeft st) -> do
-            next <- st
-            let updated =
-                  zipWith update [0..] ts
-                update j (c', t')
-                  | j == i    = (0, next)      -- active thread resets to ready
-                  | otherwise = (c' - 1, t')   -- others sleepCounter -= 1
-            return updated
+        ----------------------------------------------------------------
+        -- State-step: consumes 1 tick
+        --   • execute the effect
+        --   • this thread becomes "next"
+        --   • other threads sleepCounter-- 
+        ----------------------------------------------------------------
+        Free (FLeft st) -> do
+          next <- st
+          let ts' = zipWith update [0..] ts
+              update j (c', t')
+                | j == i    = (0, next)
+                | otherwise = (max 0 (c' - 1), t')
+          -- Keep running same thread i
+          runThread i ts'
 
-          -- sleep n → does NOT consume tick
-          Free (FRight (Sleep n next)) ->
-            return (before ++ [(n, next)] ++ after)
+        ----------------------------------------------------------------
+        -- Sleep n: DOES NOT consume tick
+        -- scheduler resumes to outer loop
+        ----------------------------------------------------------------
+        Free (FRight (Sleep n next)) ->
+          return (before ++ [(n, next)] ++ after)
