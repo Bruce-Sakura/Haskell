@@ -17,42 +17,13 @@ import Data.List
 ---------------------------------------------------------------------------------
 
 {- Question 1 -}
--- Conversion overview:
---   Rose a        is a tree with branches:    Lf a  |  Br [Rose a]
---   Free [] a     is the same structure:      Pure a  |  Free [Free [] a]
---
---   toRose   : Free [] a  -> Rose a
---   fromRose : Rose a     -> Free [] a
---
---   These functions should form an isomorphism:
---       toRose (fromRose r) = r
---       fromRose (toRose f) = f
-
 -- Rose tree:
 --        Br
 --      /     \
 --   Lf 1     Br
 --           /   \
 --        Lf 2   Lf 3
---
--- r = Br [Lf 1, Br [Lf 2, Lf 3]]
-
--- Example Free [] a term with the same shape:
--- f = Free [Pure 1, Free [Pure 2, Pure 3]]
-
--- Since Rose has no Eq instance, we define a structural equality for testing:
---   eqRose (Lf x) (Lf y)       = x == y
---   eqRose (Br xs) (Br ys)     = length xs == length ys
---                                && and (zipWith eqRose xs ys)
---   eqRose _ _                 = False
-
--- Test (Rose -> Free -> Rose):
---   eqRose (toRose (fromRose r)) r
-
--- Test (Free -> Rose -> Free), comparing through Rose:
---   eqRose (toRose f) (toRose (fromRose (toRose f)))
-
--- 
+ 
 toRose :: Free [] a -> Rose a
 toRose (Pure x)= Lf x
 toRose (Free xs) = Br (map toRose xs)
@@ -61,29 +32,7 @@ fromRose :: Rose a -> Free [] a
 fromRose (Lf x)= Pure x
 fromRose (Br xs) = Free (map fromRose xs)
 
--- just for testing
--- eqRose :: Eq a => Rose a -> Rose a -> Bool
--- eqRose (Lf a) (Lf b) = a == b
--- eqRose (Br xs) (Br ys) =
---     length xs == length ys &&
---     and (zipWith eqRose xs ys)
--- eqRose _ _ = False
-
-
 {- Question 2 -}
--- I don't know why showing this error so i change the name
--- Assignment3.hs:73:5: error:
---     Ambiguous occurrence ‘trace’
---     It could refer to
---        either ‘Types.trace’,
---               imported from ‘Types’ at Assignment3.hs:10:1-12
---               (and originally defined at Types.hs:72:1-5)
---            or ‘Assignment3.trace’, defined at Assignment3.hs:67:1
---    |
--- 73 |     trace next
---    |     ^^^^^
--- Failed, one module loaded.
-
 trace :: FreeState s a -> State ([s], s) a
 trace (Pure x) = return x
 
@@ -94,18 +43,6 @@ trace (Free a) = do
     trace next                           -- Recursively call trace with the next computation
 
 {- Question 3 -}
--- This not work
--- roundRobin :: [YieldState s ()] -> State s ()
--- roundRobin [] = return () -- No processes left to run -> return ()
-
--- roundRobin (p: ps) = case p of 
---     Pure () -> roundRobin ps -- When a computation finishes with a Pure, that process is removed from the list
-
---     Free (FLeft st) -> do
---         next <- st --st is a State s (YieldState s ())
---         roundRobin (ps ++ [next]) -- Add the yielded process to the end of the list
-
---     Free (FRight (Yield next)) -> roundRobin (ps ++ [next]) -- release the yield and continue
 roundRobin :: [YieldState s ()] -> State s ()
 roundRobin [] = return ()
 
@@ -138,7 +75,6 @@ charWriter c = do
 
 yieldExample :: [YieldState String ()]
 yieldExample = [charWriter 'a', charWriter 'b', charWriter 'c']
-
 
 {- Question 4 -}
 schedule :: [SleepState s ()] -> State s ()
@@ -174,12 +110,6 @@ schedule ts0 = loop (initThreads ts0)
     dec :: (Int, SleepState s ()) -> (Int, SleepState s ())
     dec (c,t) = (max 0 (c-1), t)
 
-    -- Run thread i until:
-    --   • it executes a Sleep
-    --   • or finishes (Pure)
-    --
-    -- Every State-step is 1 tick → other threads' counters -1
-
     runThread
       :: Int
       -> [(Int, SleepState s ())]
@@ -191,21 +121,14 @@ schedule ts0 = loop (initThreads ts0)
         -- Thread ends
         Pure () -> return (before ++ after)
 
-        -- State-step: consumes 1 tick
-        --   • execute the effect
-        --   • this thread becomes "next"
-        --   • other threads sleepCounter-- 
         Free (FLeft st) -> do
           next <- st
           let ts' = zipWith update [0..] ts
               update j (c', t')
                 | j == i    = (0, next)
                 | otherwise = (max 0 (c' - 1), t')
-          -- Keep running same thread i
-          runThread i ts'
 
-        -- Sleep n: DOES NOT consume tick
-        -- scheduler resumes to outer loop
+          runThread i ts'
 
         Free (FRight (Sleep n next)) ->
           return (before ++ [(n, next)] ++ after)
